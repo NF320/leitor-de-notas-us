@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invoice Reader v2.1 (US) - PDF Ready</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@17/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@google/generative-ai/dist/index.min.js"></script>
+
+    <style>
+        .loader { border: 5px solid #f3f3f3; border-top: 5px solid #3498db; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); padding: 10px 20px; border-radius: 5px; color: white; z-index: 1000; opacity: 0; transition: opacity 0.5s, bottom 0.5s; }
+        .toast.show { opacity: 1; bottom: 30px; }
+        .bg-success { background-color: #28a745; }
+        .bg-danger { background-color: #dc3545; }
+    </style>
+</head>
+<body class="bg-gray-100">
+
+    <div id="root" class="container mx-auto p-4 md:p-8"></div>
+
+    <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    // --- Sua Configuração do Firebase (JÁ PREENCHIDA PARA VOCÊ) ---
+    const firebaseConfig = {
+        apiKey: "AIzaSyDDAm2kLzbe_EeOBBMI21yubPWmbahL800",
+        authDomain: "meu-leitor-de-notas-heart.firebaseapp.com",
+        projectId: "meu-leitor-de-notas-heart",
+        storageBucket: "meu-leitor-de-notas-heart.firebasestorage.app",
+        messagingSenderId: "594278201097",
+        appId: "1:594278201097:web:7c4b59123de5019cc885d8"
+    };
+
+    if (!firebase.apps.length) {
+        firebase.initializeApp(firebaseConfig);
+    }
+    const db = firebase.firestore();
+    const invoicesCollection = db.collection('invoices-us');
+
+    const App = () => {
+        const [jsonData, setJsonData] = useState(null);
+        const [fileName, setFileName] = useState("");
+        const [loading, setLoading] = useState(false);
+        const [error, setError] = useState(null);
+        const [invoices, setInvoices] = useState([]);
+        const [toast, setToast] = useState({ show: false, message: '', type: '' });
+
+        useEffect(() => {
+            const unsubscribe = invoicesCollection.orderBy("transactionDate", "desc").onSnapshot(snapshot => {
+                const invoicesData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                setInvoices(invoicesData);
+            }, (err) => {
+                console.error("Erro no Firebase:", err);
+                setError("Não foi possível carregar os dados. Verifique a configuração do Firebase.");
+            });
+            return () => unsubscribe();
+        }, []);
+
+        const showToast = (message, type) => {
+            setToast({ show: true, message, type });
+            setTimeout(() => { setToast({ show: false, message: '', type: '' }); }, 3000);
+        };
+
+        const handleFileSelect = (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                setFileName(file.name); setLoading(true); setJsonData(null); setError(null);
+                extractDataFromFile(file, file.type); 
+            }
+        };
+        
+        const extractDataFromFile = (file, mimeType) => {
+            const reader = new FileReader();
+            reader.onloadend = async () => {
+                const base64Data = reader.result.split(',')[1];
+                try {
+                    // --- SUA CHAVE GEMINI AQUI ---
+                    const genAI = new google.generativeai.GoogleGenerativeAI(AIzaSyAPwR4iWpj0sy_xBqgku1kUDKMQArJyqEQ);
+                    const model = genAI.getGenerativeModel({ model: "gemini-pro-vision" });
+                    const prompt = "Please analyze this invoice/receipt and extract the following information in JSON format: establishmentName (string), transactionDate (string, format YYYY-MM-DD), totalAmount (number), and items (array of objects, each with description (string) and price (number)).";
+                    
+                    const result = await model.generateContent([prompt, { inlineData: { data: base64Data, mime_type: mimeType } }]);
+                    const response = await result.response;
+                    const text = response.text();
+                    const cleanedText = text.replace(/```json|```/g, '').trim();
+                    setJsonData(JSON.parse(cleanedText));
+
+                } catch (err) {
+                    console.error("Error during API call:", err);
+                    setError("Failed to extract data. Check if your Gemini API Key is correct.");
+                } finally { setLoading(false); }
+            };
+            reader.readAsDataURL(file);
+        };
+
+        const handleSave = () => {
+            if (!jsonData) return;
+            invoicesCollection.add(jsonData).then(() => {
+                showToast("Invoice saved!", "success"); setJsonData(null); setFileName("");
+            }).catch(err => showToast(`Error saving: ${err.message}`, "danger"));
+        };
+        
+        const handleDelete = (id) => {
+            if (window.confirm("Are you sure?")) {
+                invoicesCollection.doc(id).delete().then(() => showToast("Invoice deleted.", "success")).catch(err => showToast(`Error deleting: ${err.message}`, "danger"));
+            }
+        };
+
+        return (
+            <div>
+                <header className="text-center mb-8"><h1 className="text-4xl font-bold text-gray-800">Invoice Reader US</h1><p className="text-gray-600">Extract and store data from your invoices (Images or PDFs)</p></header>
+                <div className="bg-white p-6 rounded-lg shadow-lg mb-8">
+                    <div className="text-center">
+                        <input type="file" id="file-input" accept="image/*,application/pdf" className="hidden" onChange={handleFileSelect} />
+                        <label htmlFor="file-input" className="cursor-pointer bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors">{fileName ? `Selected: ${fileName}` : "Select Invoice File"}</label>
+                    </div>
+                    {loading && <div className="flex justify-center mt-4"><div className="loader"></div></div>}
+                    {error && <div className="text-red-500 text-center mt-4">{error}</div>}
+                    {jsonData && (<div className="mt-6"><pre className="bg-gray-200 p-4 rounded-lg overflow-x-auto">{JSON.stringify(jsonData, null, 2)}</pre><div className="text-center mt-4"><button onClick={handleSave} className="bg-green-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-green-700 transition-colors">Save Data</button></div></div>)}
+                </div>
+                <div className="bg-white p-6 rounded-lg shadow-lg">
+                    <h2 className="text-2xl font-bold text-gray-700 mb-4">Stored Invoices</h2>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left">
+                            <thead><tr className="bg-gray-200 text-gray-600"><th className="p-3">Store</th><th className="p-3">Date</th><th className="p-3">Total</th><th className="p-3">Actions</th></tr></thead>
+                            <tbody>{invoices.map(invoice => (<tr key={invoice.id} className="border-b hover:bg-gray-50"><td className="p-3">{invoice.establishmentName}</td><td className="p-3">{invoice.transactionDate}</td><td className="p-3 font-mono">${(invoice.totalAmount || 0).toFixed(2)}</td><td className="p-3"><button onClick={() => handleDelete(invoice.id)} className="text-red-500 hover:text-red-700 mr-2">Delete</button></td></tr>))}</tbody>
+                        </table>
+                    </div>
+                </div>
+                {toast.show && <div className={`toast show bg-${toast.type}`}>{toast.message}</div>}
+            </div>
+        );
+    }
+    ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>
