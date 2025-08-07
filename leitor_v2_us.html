@@ -51,16 +51,16 @@
 
     <script type="text/babel">
     const { useState, useEffect } = React;
-    // Removido o import do "generative-ai" daqui, pois ele já é carregado globalmente.
 
-   const firebaseConfig = {
-    apiKey: "AIzaSyDDAm2kLzbe_EeOBBMI21yubPWmbahL800",
-    authDomain: "meu-leitor-de-notas-heart.firebaseapp.com",
-    projectId: "meu-leitor-de-notas-heart",
-    storageBucket: "meu-leitor-de-notas-heart.firebasestorage.app",
-    messagingSenderId: "594278201097",
-    appId: "1:594278201097:web:7c4b59123de5019cc885d8"
-};
+    // --- Sua Configuração do Firebase ---
+        const firebaseConfig = {
+        apiKey: "AIzaSyDDAm2kLzbe_EeOBBMI21yubPWmbahL800",
+        authDomain: "meu-leitor-de-notas-heart.firebaseapp.com",
+        projectId: "meu-leitor-de-notas-heart",
+        storageBucket: "meu-leitor-de-notas-heart.firebasestorage.app",
+        messagingSenderId: "594278201097",
+        appId: "1:594278201097:web:7c4b59123de5019cc885d8"
+    };
 
     if (!firebase.apps.length) {
         firebase.initializeApp(firebaseConfig);
@@ -74,7 +74,6 @@
         const [loading, setLoading] = useState(false);
         const [error, setError] = useState(null);
         const [invoices, setInvoices] = useState([]);
-        const [editingId, setEditingId] = useState(null);
         const [toast, setToast] = useState({ show: false, message: '', type: '' });
 
         useEffect(() => {
@@ -111,7 +110,8 @@
             reader.onloadend = async () => {
                 const base64Data = reader.result.split(',')[1];
                 try {
-                    "AIzaSyDDAm2kLzbe_EeOBBMI21yubPWmbahL800"
+                    // --- Sua Chave da API do Gemini ---
+                    // Lembre-se de colocar sua chave real aqui.
                     const genAI = new google.generativeai.GoogleGenerativeAI("AIzaSyDDAm2kLzbe_EeOBBMI21yubPWmbahL800");
                     const model = genAI.getGenerativeModel({ model: "gemini-pro-vision" });
                     const prompt = "Please analyze this invoice/receipt and extract the following information in JSON format: establishmentName (string), transactionDate (string, format YYYY-MM-DD), totalAmount (number), and items (array of objects, each with description (string) and price (number)).";
@@ -225,10 +225,3 @@
     </script>
 </body>
 </html>
-
-
-
-
-
-
-
