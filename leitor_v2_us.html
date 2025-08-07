@@ -51,17 +51,16 @@
 
     <script type="text/babel">
     const { useState, useEffect } = React;
-    const { GoogleGenerativeAI } = "generative-ai";
+    // Removido o import do "generative-ai" daqui, pois ele já é carregado globalmente.
 
-    // --- Sua Configuração do Firebase ---
-    const firebaseConfig = {
-        apiKey: "SUA_API_KEY_DO_FIREBASE",
-        authDomain: "SEU_AUTH_DOMAIN",
-        projectId: "SEU_PROJECT_ID",
-        storageBucket: "SEU_STORAGE_BUCKET",
-        messagingSenderId: "SEU_SENDER_ID",
-        appId: "SEU_APP_ID"
-    };
+   const firebaseConfig = {
+    apiKey: "AIzaSyDDAm2kLzbe_EeOBBMI21yubPWmbahL800",
+    authDomain: "meu-leitor-de-notas-heart.firebaseapp.com",
+    projectId: "meu-leitor-de-notas-heart",
+    storageBucket: "meu-leitor-de-notas-heart.firebasestorage.app",
+    messagingSenderId: "594278201097",
+    appId: "1:594278201097:web:7c4b59123de5019cc885d8"
+};
 
     if (!firebase.apps.length) {
         firebase.initializeApp(firebaseConfig);
@@ -82,6 +81,9 @@
             const unsubscribe = invoicesCollection.orderBy("transactionDate", "desc").onSnapshot(snapshot => {
                 const invoicesData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 setInvoices(invoicesData);
+            }, (err) => {
+                console.error("Erro no Firebase:", err);
+                setError("Não foi possível carregar os dados. Verifique a configuração do Firebase.");
             });
             return () => unsubscribe();
         }, []);
@@ -100,26 +102,23 @@
                 setLoading(true);
                 setJsonData(null);
                 setError(null);
-                // MODIFICADO: Passa o tipo do arquivo (MIME type)
                 extractDataFromFile(file, file.type); 
             }
         };
         
-        // MODIFICADO: Função renomeada e atualizada
         const extractDataFromFile = (file, mimeType) => {
             const reader = new FileReader();
             reader.onloadend = async () => {
                 const base64Data = reader.result.split(',')[1];
                 try {
                     "AIzaSyDDAm2kLzbe_EeOBBMI21yubPWmbahL800"
-                    const genAI = new GoogleGenerativeAI("SUA_CHAVE_DE_API_AQUI");
+                    const genAI = new google.generativeai.GoogleGenerativeAI("AIzaSyDDAm2kLzbe_EeOBBMI21yubPWmbahL800");
                     const model = genAI.getGenerativeModel({ model: "gemini-pro-vision" });
                     const prompt = "Please analyze this invoice/receipt and extract the following information in JSON format: establishmentName (string), transactionDate (string, format YYYY-MM-DD), totalAmount (number), and items (array of objects, each with description (string) and price (number)).";
                     
                     const result = await model.generateContent([prompt, {
                         inlineData: {
                             data: base64Data,
-                            // MODIFICADO: Usa o MIME type dinâmico
                             mime_type: mimeType
                         }
                     }]);
@@ -162,20 +161,6 @@
             }
         };
 
-        const handleEdit = (invoice) => {
-            setEditingId(invoice.id);
-            // You can use a more sophisticated modal for editing in a real app
-        };
-
-        const handleUpdate = (id, updatedData) => {
-            invoicesCollection.doc(id).update(updatedData)
-                .then(() => {
-                    showToast("Invoice updated!", "success");
-                    setEditingId(null);
-                })
-                .catch(err => showToast(`Error updating: ${err.message}`, "danger"));
-        };
-
         return (
             <div>
                 <header className="text-center mb-8">
@@ -185,7 +170,6 @@
 
                 <div className="bg-white p-6 rounded-lg shadow-lg mb-8">
                     <div className="text-center">
-                        {/* MODIFICADO: accept agora inclui application/pdf */}
                         <input type="file" id="file-input" accept="image/*,application/pdf" className="hidden" onChange={handleFileSelect} />
                         <label htmlFor="file-input" className="cursor-pointer bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors">
                             {fileName ? `Selected: ${fileName}` : "Select Invoice File"}
@@ -225,7 +209,6 @@
                                         <td className="p-3 font-mono">${(invoice.totalAmount || 0).toFixed(2)}</td>
                                         <td className="p-3">
                                             <button onClick={() => handleDelete(invoice.id)} className="text-red-500 hover:text-red-700 mr-2">Delete</button>
-                                            {/* <button onClick={() => handleEdit(invoice)} className="text-blue-500 hover:text-blue-700">Edit</button> */}
                                         </td>
                                     </tr>
                                 ))}
@@ -239,9 +222,7 @@
     }
 
     ReactDOM.render(<App />, document.getElementById('root'));
-
     </script>
-
 </body>
 </html>
 
